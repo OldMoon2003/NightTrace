@@ -111,36 +111,170 @@
             android:scaleType="centerCrop"
             android:src="@drawable/start_cover" />
 
-        <LinearLayout
+        <View
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="#69050816"
-            android:gravity="top|center_horizontal"
+            android:background="#41020817" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="168dp"
+            android:layout_gravity="top"
+            android:background="#B9050816" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="250dp"
+            android:layout_gravity="bottom"
+            android:background="#B3050816" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="left"
+            android:layout_marginLeft="24dp"
+            android:layout_marginTop="170dp"
+            android:layout_marginBottom="72dp"
+            android:alpha="0.82"
+            android:background="#22D3EE" />
+
+        <View
+            android:layout_width="3dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="right"
+            android:layout_marginTop="206dp"
+            android:layout_marginRight="24dp"
+            android:layout_marginBottom="72dp"
+            android:alpha="0.72"
+            android:background="#FACC15" />
+
+        <LinearLayout
+            android:id="@+id/start_title_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
             android:orientation="vertical"
             android:paddingStart="28dp"
-            android:paddingTop="64dp"
-            android:paddingEnd="28dp"
-            android:paddingBottom="42dp">
+            android:paddingTop="58dp"
+            android:paddingEnd="28dp">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="142dp"
+                android:contentDescription="@string/app_name"
+                android:scaleType="fitCenter"
+                android:src="@drawable/start_title_art" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/start_controls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingStart="36dp"
+            android:paddingEnd="36dp"
+            android:paddingBottom="62dp">
 
             <TextView
-                android:layout_width="match_parent"
+                android:id="@+id/tv_start_best"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="center"
-                android:text="夜幕疾影"
-                android:textColor="#F8FAFC"
-                android:textSize="40sp"
+                android:background="#B30B1325"
+                android:paddingStart="16dp"
+                android:paddingTop="8dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="8dp"
+                android:text="最高分 0"
+                android:textColor="#E2E8F0"
+                android:textSize="14sp"
                 android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btn_start_hero"
-                android:layout_width="230dp"
-                android:layout_height="56dp"
-                android:layout_marginTop="22dp"
+                android:layout_width="match_parent"
+                android:layout_height="62dp"
+                android:layout_marginTop="14dp"
                 android:backgroundTint="#FACC15"
                 android:text="开始游戏"
                 android:textColor="#111827"
-                android:textSize="18sp"
+                android:textSize="20sp"
                 android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="2dp"
+                    android:layout_weight="1"
+                    android:alpha="0.8"
+                    android:background="#22D3EE" />
+
+                <View
+                    android:layout_width="46dp"
+                    android:layout_height="2dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="10dp"
+                    android:alpha="0.82"
+                    android:background="#FACC15" />
+
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="2dp"
+                    android:layout_weight="1"
+                    android:alpha="0.8"
+                    android:background="#FB7185" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
+
+    <FrameLayout
+        android:id="@+id/start_transition"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0"
+        android:background="#F2050816"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <View
+            android:id="@+id/transition_sweep"
+            android:layout_width="match_parent"
+            android:layout_height="180dp"
+            android:layout_gravity="center"
+            android:alpha="0.86"
+            android:background="#2822D3EE" />
+
+        <TextView
+            android:id="@+id/transition_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:text="LET'S GO"
+            android:textColor="#F8FAFC"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tv_countdown"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#26050816"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="3"
+        android:textColor="#F8FAFC"
+        android:textSize="104sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </FrameLayout>

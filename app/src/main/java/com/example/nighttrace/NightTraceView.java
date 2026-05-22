@@ -31,6 +31,7 @@ public class NightTraceView extends View {
 
     public enum GameState {
         READY,
+        COUNTDOWN,
         RUNNING,
         PAUSED,
         GAME_OVER
@@ -48,6 +49,10 @@ public class NightTraceView extends View {
     private static final float OBSTACLE_WIDTH = 84f;
     private static final float OBSTACLE_HEIGHT = 86f;
     private static final float COIN_RADIUS = 18f;
+    private static final float ROAD_TOP_LEFT_RATIO = 0.23f;
+    private static final float ROAD_TOP_RIGHT_RATIO = 0.77f;
+    private static final float ROAD_BOTTOM_LEFT_RATIO = 0.10f;
+    private static final float ROAD_BOTTOM_RIGHT_RATIO = 0.90f;
     private static final float MAX_FRAME_SECONDS = 0.045f;
     private static final int MAX_LIVES = 3;
     private static final long JUMP_MS = 900L;
@@ -96,6 +101,7 @@ public class NightTraceView extends View {
     private Bitmap tiresBitmap;
     private Bitmap barrierBitmap;
     private Bitmap oilBitmap;
+    private Bitmap gateLightsBitmap;
     private Bitmap droneBitmap;
     private Bitmap barrelBitmap;
     private Bitmap lightBitmap;
@@ -178,12 +184,17 @@ public class NightTraceView extends View {
     }
 
     public void startNewGame() {
+        prepareNewGame();
+        launchPreparedGame();
+    }
+
+    public void prepareNewGame() {
         obstacles.clear();
         collectibles.clear();
         particles.clear();
         player = new Player();
         resetPlayerToRoad();
-        state = GameState.RUNNING;
+        state = GameState.COUNTDOWN;
         score = 0;
         combo = 0;
         lives = MAX_LIVES;
@@ -203,6 +214,18 @@ public class NightTraceView extends View {
         flashUntil = 0L;
         oilSplatUntil = 0L;
         lastHitMs = 0L;
+        lastFrameNanos = 0L;
+        choreographer.removeFrameCallback(frameCallback);
+        framePosted = false;
+        notifyState();
+        invalidate();
+    }
+
+    public void launchPreparedGame() {
+        if (state != GameState.COUNTDOWN) {
+            return;
+        }
+        state = GameState.RUNNING;
         startMs = System.currentTimeMillis();
         lastFrameNanos = 0L;
         notifyState();
@@ -321,8 +344,8 @@ public class NightTraceView extends View {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
         roadTop = 0f;
         roadBottom = height;
-        roadLeft = width * 0.24f;
-        roadRight = width * 0.76f;
+        roadLeft = width * ROAD_TOP_LEFT_RATIO;
+        roadRight = width * ROAD_TOP_RIGHT_RATIO;
         playerBaseY = height * 0.76f;
         resetPlayerToRoad();
     }
@@ -373,6 +396,7 @@ public class NightTraceView extends View {
 
         for (Obstacle obstacle : obstacles) {
             obstacle.y += speed * deltaSeconds * obstacle.speedScale;
+            obstacle.x = laneCenterAtY(obstacle.lane, obstacle.y);
             if (obstacle.type == TYPE_DRONE) {
                 obstacle.drift += deltaSeconds * obstacle.driftDirection;
                 if (Math.abs(obstacle.drift) > 1.2f) {
@@ -382,16 +406,21 @@ public class NightTraceView extends View {
         }
         for (Collectible collectible : collectibles) {
             float itemSpeed = speed * deltaSeconds;
+            boolean magnetPulling = false;
             if (magnetActive(now)) {
                 float dx = player.x - collectible.x;
                 float dy = playerY(now) - collectible.y;
                 float dist = (float) Math.hypot(dx, dy);
                 if (dist < 250f * density && dist > 1f) {
+                    magnetPulling = true;
                     collectible.x += dx / dist * speed * deltaSeconds * 0.72f;
                     collectible.y += dy / dist * speed * deltaSeconds * 0.72f;
                 }
             }
             collectible.y += itemSpeed;
+            if (!magnetPulling) {
+                collectible.x = laneCenterAtY(collectible.lane, collectible.y);
+            }
             collectible.spin += deltaSeconds * 4.8f;
         }
         for (Particle particle : particles) {
@@ -410,11 +439,14 @@ public class NightTraceView extends View {
 
     private void handleCollisions(long now) {
         float py = playerY(now);
-        playerRect.set(player.x - PLAYER_WIDTH * density * 0.46f, py - PLAYER_HEIGHT * density * 0.42f,
-                player.x + PLAYER_WIDTH * density * 0.46f, py + PLAYER_HEIGHT * density * 0.42f);
+        playerRect.set(player.x - PLAYER_WIDTH * density * 0.36f, py - PLAYER_HEIGHT * density * 0.40f,
+                player.x + PLAYER_WIDTH * density * 0.36f, py + PLAYER_HEIGHT * density * 0.40f);
 
         for (Obstacle obstacle : obstacles) {
             if (obstacle.hit) {
+                continue;
+            }
+            if (obstacle.type == TYPE_BARRIER && obstacle.lane != laneAtX(player.x)) {
                 continue;
             }
             RectF hitBox = obstacle.hitBox(rect);
@@ -542,7 +574,8 @@ public class NightTraceView extends View {
         } else {
             type = random.nextInt(4);
         }
-        Obstacle obstacle = new Obstacle(type, lane, laneCenter(lane), -90f * density);
+        float spawnY = -90f * density;
+        Obstacle obstacle = new Obstacle(type, lane, laneCenterAtY(lane, spawnY), spawnY);
         if (type == TYPE_DRONE) {
             obstacle.speedScale = 1.18f;
             obstacle.driftDirection = random.nextBoolean() ? 1f : -1f;
@@ -551,8 +584,9 @@ public class NightTraceView extends View {
 
         if (stage >= 3 && random.nextFloat() < 0.34f) {
             int secondLane = (lane + 1 + random.nextInt(2)) % 3;
+            float secondSpawnY = -220f * density;
             obstacles.add(new Obstacle(random.nextBoolean() ? TYPE_LASER : TYPE_BARRIER,
-                    secondLane, laneCenter(secondLane), -220f * density));
+                    secondLane, laneCenterAtY(secondLane, secondSpawnY), secondSpawnY));
         }
     }
 
@@ -572,7 +606,8 @@ public class NightTraceView extends View {
         } else if (distanceMeters > 650f && roll < 0.18f) {
             type = ITEM_BOOST;
         }
-        collectibles.add(new Collectible(type, laneCenter(lane), -40f * density));
+        float spawnY = -40f * density;
+        collectibles.add(new Collectible(type, lane, laneCenterAtY(lane, spawnY), spawnY));
     }
 
     private int randomClearLaneForObstacle() {
@@ -607,9 +642,8 @@ public class NightTraceView extends View {
     }
 
     private boolean hasCollectibleNearSpawnLane(int lane) {
-        float laneX = laneCenter(lane);
         for (Collectible collectible : collectibles) {
-            if (Math.abs(collectible.x - laneX) < 8f * density && collectible.y < 180f * density) {
+            if (collectible.lane == lane && collectible.y < 180f * density) {
                 return true;
             }
         }
@@ -651,13 +685,6 @@ public class NightTraceView extends View {
             canvas.drawRect(0f, 0f, getWidth(), getHeight(), paint);
             paint.setShader(null);
 
-            float lightGap = 128f * density;
-            float lightOffset = worldScroll * 0.36f % lightGap;
-            for (float y = -lightGap + lightOffset; y < getHeight() + lightGap; y += lightGap) {
-                float pulse = 0.55f + 0.45f * randomHash((int) (y / Math.max(1f, density)) + 9);
-                drawRoadsideLight(canvas, getWidth() * 0.12f, y, COLOR_LANE_LEFT, pulse);
-                drawRoadsideLight(canvas, getWidth() * 0.88f, y + lightGap * 0.42f, COLOR_GOLD, pulse * 0.86f);
-            }
             return;
         }
 
@@ -679,14 +706,6 @@ public class NightTraceView extends View {
             float y = (i * 137f * density + worldScroll * 0.12f) % Math.max(1, getHeight());
             canvas.drawCircle(x, y, 1.4f * density, paint);
         }
-    }
-
-    private void drawRoadsideLight(Canvas canvas, float x, float y, int color, float pulse) {
-        glowPaint.setColor(Color.argb((int) (85 * pulse), Color.red(color), Color.green(color), Color.blue(color)));
-        canvas.drawCircle(x, y, 20f * density, glowPaint);
-        paint.setColor(Color.argb((int) (150 * pulse), Color.red(color), Color.green(color), Color.blue(color)));
-        rect.set(x - 2.5f * density, y - 18f * density, x + 2.5f * density, y + 18f * density);
-        canvas.drawRoundRect(rect, 3f * density, 3f * density, paint);
     }
 
     private void drawBuilding(Canvas canvas, float x, float y, float width, float height, boolean leftSide) {
@@ -723,25 +742,31 @@ public class NightTraceView extends View {
     }
 
     private void drawRoad(Canvas canvas, long now) {
-        float bottomLeft = getWidth() * 0.13f;
-        float bottomRight = getWidth() * 0.87f;
+        float bottomLeft = getWidth() * ROAD_BOTTOM_LEFT_RATIO;
+        float bottomRight = getWidth() * ROAD_BOTTOM_RIGHT_RATIO;
         path.reset();
         path.moveTo(roadLeft, roadTop);
         path.lineTo(roadRight, roadTop);
         path.lineTo(bottomRight, roadBottom);
         path.lineTo(bottomLeft, roadBottom);
         path.close();
-        if (highwaySceneBitmap != null) {
-            paint.setShader(new LinearGradient(0f, 0f, 0f, getHeight(),
-                    Color.argb(36, 12, 18, 28), Color.argb(118, 8, 12, 19), Shader.TileMode.CLAMP));
-        } else {
-            paint.setColor(COLOR_ROAD);
-        }
+        paint.setStyle(Paint.Style.FILL);
+        paint.setAlpha(highwaySceneBitmap != null ? 210 : 255);
+        paint.setShader(new LinearGradient(0f, roadTop, 0f, roadBottom,
+                new int[]{Color.parseColor("#182131"), COLOR_ROAD, Color.parseColor("#070B14")},
+                new float[]{0f, 0.42f, 1f}, Shader.TileMode.CLAMP));
         canvas.drawPath(path, paint);
         paint.setShader(null);
+        paint.setAlpha(255);
 
-        drawBridgeShoulder(canvas, roadLeft, bottomLeft, Color.argb(232, 34, 211, 238));
-        drawBridgeShoulder(canvas, roadRight, bottomRight, Color.argb(232, 250, 204, 21));
+        drawRoadSurfaceDetails(canvas, bottomLeft, bottomRight);
+
+        int leftShoulderColor = highwaySceneBitmap != null ? Color.argb(200, 148, 163, 184) : Color.argb(232, 34, 211, 238);
+        int rightShoulderColor = highwaySceneBitmap != null ? Color.argb(200, 148, 163, 184) : Color.argb(232, 250, 204, 21);
+        drawBridgeShoulder(canvas, roadLeft, bottomLeft, leftShoulderColor);
+        drawBridgeShoulder(canvas, roadRight, bottomRight, rightShoulderColor);
+        drawShoulderReflectors(canvas, roadLeft, bottomLeft, leftShoulderColor, 0f);
+        drawShoulderReflectors(canvas, roadRight, bottomRight, rightShoulderColor, 0.48f);
 
         for (int lane = 1; lane < 3; lane++) {
             float ratio = lane / 3f;
@@ -750,27 +775,93 @@ public class NightTraceView extends View {
             drawLaneDivider(canvas, topX, bottomX, lane);
         }
 
-        float stripeGap = 164f * density;
-        float offset = worldScroll % stripeGap;
-        for (float y = -stripeGap + offset; y < getHeight() + stripeGap; y += stripeGap) {
-            float topY = y;
-            float bottomY = y + 5f * density;
-            float roadT = topY / Math.max(1f, getHeight());
-            float leftX = lerp(roadLeft, bottomLeft, roadT);
-            float rightX = lerp(roadRight, bottomRight, roadT);
-            paint.setColor(Color.argb(88, 226, 232, 240));
-            canvas.drawLine(leftX + 10f * density, topY, rightX - 10f * density, bottomY, paint);
+        if (highwaySceneBitmap == null) {
+            float stripeGap = 164f * density;
+            float offset = worldScroll % stripeGap;
+            for (float y = -stripeGap + offset; y < getHeight() + stripeGap; y += stripeGap) {
+                float topY = y;
+                float bottomY = y + 5f * density;
+                float roadT = topY / Math.max(1f, getHeight());
+                float leftX = lerp(roadLeft, bottomLeft, roadT);
+                float rightX = lerp(roadRight, bottomRight, roadT);
+                paint.setColor(Color.argb(88, 226, 232, 240));
+                canvas.drawLine(leftX + 10f * density, topY, rightX - 10f * density, bottomY, paint);
+            }
         }
 
     }
 
+    private void drawRoadSurfaceDetails(Canvas canvas, float bottomLeft, float bottomRight) {
+        canvas.save();
+        canvas.clipPath(path);
+
+        paint.setShader(new LinearGradient(roadLeft, 0f, roadRight, getHeight(),
+                new int[]{Color.argb(22, 226, 232, 240), Color.TRANSPARENT, Color.argb(28, 2, 6, 16)},
+                new float[]{0f, 0.48f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(roadLeft, roadTop, bottomRight, roadBottom, paint);
+        paint.setShader(null);
+
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        for (int lane = 0; lane < 3; lane++) {
+            float laneStart = (lane + 0.5f) / 3f;
+            float topCenter = lerp(roadLeft, roadRight, laneStart);
+            float bottomCenter = lerp(bottomLeft, bottomRight, laneStart);
+            float topTrackGap = (roadRight - roadLeft) * 0.052f;
+            float bottomTrackGap = (bottomRight - bottomLeft) * 0.052f;
+            paint.setStrokeWidth((lane == 1 ? 7f : 5f) * density);
+            paint.setColor(Color.argb(26, 2, 5, 12));
+            canvas.drawLine(topCenter - topTrackGap, roadTop, bottomCenter - bottomTrackGap, roadBottom, paint);
+            canvas.drawLine(topCenter + topTrackGap, roadTop, bottomCenter + bottomTrackGap, roadBottom, paint);
+        }
+
+        float seamGap = 188f * density;
+        float seamOffset = (worldScroll * 0.58f) % seamGap;
+        paint.setStrokeCap(Paint.Cap.BUTT);
+        for (float y = -seamGap + seamOffset; y < getHeight() + seamGap; y += seamGap) {
+            float ratio = y / Math.max(1f, getHeight());
+            float leftX = lerp(roadLeft, bottomLeft, ratio);
+            float rightX = lerp(roadRight, bottomRight, ratio);
+            paint.setStrokeWidth(Math.max(1f, (1.2f + ratio * 1.8f) * density));
+            paint.setColor(Color.argb(54, 1, 4, 11));
+            canvas.drawLine(leftX, y, rightX, y + 4f * density, paint);
+            paint.setStrokeWidth(Math.max(1f, (0.55f + ratio) * density));
+            paint.setColor(Color.argb(24, 226, 232, 240));
+            canvas.drawLine(leftX + 8f * density, y + 4f * density,
+                    rightX - 8f * density, y + 7f * density, paint);
+        }
+
+        paint.setStrokeWidth(1f);
+        canvas.restore();
+    }
+
     private void drawBridgeShoulder(Canvas canvas, float topX, float bottomX, int color) {
-        glowPaint.setStrokeWidth(10f * density);
-        glowPaint.setColor(Color.argb(96, Color.red(color), Color.green(color), Color.blue(color)));
+        int glowAlpha = highwaySceneBitmap != null ? 42 : 96;
+        int lineAlpha = highwaySceneBitmap != null ? 188 : Color.alpha(color);
+        glowPaint.setStrokeWidth((highwaySceneBitmap != null ? 6f : 10f) * density);
+        glowPaint.setColor(Color.argb(glowAlpha, Color.red(color), Color.green(color), Color.blue(color)));
         canvas.drawLine(topX, 0f, bottomX, getHeight(), glowPaint);
-        paint.setStrokeWidth(2.8f * density);
-        paint.setColor(color);
+        paint.setStrokeWidth((highwaySceneBitmap != null ? 2f : 2.8f) * density);
+        paint.setColor(Color.argb(lineAlpha, Color.red(color), Color.green(color), Color.blue(color)));
         canvas.drawLine(topX, 0f, bottomX, getHeight(), paint);
+        paint.setStrokeWidth(1f);
+    }
+
+    private void drawShoulderReflectors(Canvas canvas, float topX, float bottomX, int color, float phase) {
+        float markerGap = 126f * density;
+        float offset = (worldScroll * 0.86f + markerGap * phase) % markerGap;
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        for (float y = -markerGap + offset; y < getHeight() + markerGap; y += markerGap) {
+            float markerBottom = y + 24f * density;
+            float startX = lerp(topX, bottomX, y / Math.max(1f, getHeight()));
+            float endX = lerp(topX, bottomX, markerBottom / Math.max(1f, getHeight()));
+            glowPaint.setStrokeWidth(7f * density);
+            glowPaint.setColor(Color.argb(38, Color.red(color), Color.green(color), Color.blue(color)));
+            canvas.drawLine(startX, y, endX, markerBottom, glowPaint);
+            paint.setStrokeWidth(2.6f * density);
+            paint.setColor(Color.argb(188, Color.red(color), Color.green(color), Color.blue(color)));
+            canvas.drawLine(startX, y, endX, markerBottom, paint);
+        }
+        paint.setStrokeCap(Paint.Cap.BUTT);
         paint.setStrokeWidth(1f);
     }
 
@@ -806,16 +897,21 @@ public class NightTraceView extends View {
     }
 
     private void drawCoin(Canvas canvas, Collectible coin) {
-        float radius = COIN_RADIUS * density * (1f + 0.08f * (float) Math.sin(coin.spin));
-        glowPaint.setColor(Color.argb(130, 250, 204, 21));
-        canvas.drawCircle(coin.x, coin.y, radius * 1.65f, glowPaint);
+        float bob = (float) Math.sin(coin.spin * 0.9f) * 3.4f * density;
+        float radius = COIN_RADIUS * density * (1f + 0.07f * (float) Math.sin(coin.spin));
+        float spriteHalfSize = radius * 1.82f;
+        float cy = coin.y + bob;
+
+        glowPaint.setColor(Color.argb(132, 250, 204, 21));
+        canvas.drawCircle(coin.x, cy, radius * 1.48f, glowPaint);
         if (coinBitmap != null) {
-            rect.set(coin.x - radius * 1.15f, coin.y - radius * 1.15f, coin.x + radius * 1.15f, coin.y + radius * 1.15f);
+            rect.set(coin.x - spriteHalfSize, cy - spriteHalfSize,
+                    coin.x + spriteHalfSize, cy + spriteHalfSize);
             canvas.drawBitmap(coinBitmap, null, rect, null);
         } else {
-            paint.setShader(new RadialGradient(coin.x - radius * 0.4f, coin.y - radius * 0.4f, radius * 1.4f,
+            paint.setShader(new RadialGradient(coin.x - radius * 0.4f, cy - radius * 0.4f, radius * 1.4f,
                     Color.WHITE, COLOR_GOLD, Shader.TileMode.CLAMP));
-            canvas.drawCircle(coin.x, coin.y, radius, paint);
+            canvas.drawCircle(coin.x, cy, radius, paint);
             paint.setShader(null);
         }
     }
@@ -913,20 +1009,9 @@ public class NightTraceView extends View {
     private void drawLaserGate(Canvas canvas, Obstacle obstacle) {
         float x = obstacle.x;
         float y = obstacle.y;
-        glowPaint.setColor(Color.argb(150, 192, 132, 252));
-        glowPaint.setStrokeWidth(8f * density);
-        canvas.drawLine(x - 42f * density, y - 34f * density, x + 42f * density, y + 34f * density, glowPaint);
-        canvas.drawLine(x - 42f * density, y + 34f * density, x + 42f * density, y - 34f * density, glowPaint);
-        paint.setColor(COLOR_PURPLE);
-        paint.setStrokeWidth(3f * density);
-        canvas.drawLine(x - 42f * density, y - 34f * density, x + 42f * density, y + 34f * density, paint);
-        canvas.drawLine(x - 42f * density, y + 34f * density, x + 42f * density, y - 34f * density, paint);
-        if (barrelBitmap != null) {
-            rect.set(x - 60f * density, y - 24f * density, x - 28f * density, y + 24f * density);
-            canvas.drawBitmap(barrelBitmap, null, rect, null);
-            rect.set(x + 28f * density, y - 24f * density, x + 60f * density, y + 24f * density);
-            canvas.drawBitmap(barrelBitmap, null, rect, null);
-        }
+        rect.set(x - 56f * density, y - 23f * density,
+                x + 56f * density, y + 23f * density);
+        drawBitmapWithGlow(canvas, gateLightsBitmap, rect, COLOR_LANE_LEFT);
     }
 
     private void drawPlayer(Canvas canvas, long now) {
@@ -1201,15 +1286,16 @@ public class NightTraceView extends View {
 
     private void loadBitmaps() {
         playerBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.player_motorcycle_v2);
-        highwaySceneBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.gameplay_highway_scene);
+        highwaySceneBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.gameplay_city_background);
         coneBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.obstacle_cone);
         tiresBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.obstacle_tires);
         barrierBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.obstacle_barrier);
         oilBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.obstacle_oil_v2);
+        gateLightsBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.obstacle_gate_lights);
         droneBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.drone_car);
         barrelBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.prop_barrel_blue);
         lightBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.prop_light_yellow);
-        coinBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.item_coin);
+        coinBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.item_coin_upright);
         diamondBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.item_diamond);
     }
 
@@ -1251,9 +1337,29 @@ public class NightTraceView extends View {
     }
 
     private float laneCenter(int lane) {
-        float bottomLeft = getWidth() == 0 ? roadLeft : getWidth() * 0.16f;
-        float bottomRight = getWidth() == 0 ? roadRight : getWidth() * 0.84f;
-        return bottomLeft + (bottomRight - bottomLeft) * (lane + 0.5f) / 3f;
+        return laneCenterAtY(lane, playerBaseY);
+    }
+
+    private float laneCenterAtY(int lane, float y) {
+        float roadAmount = Math.max(0f, Math.min(1f, y / Math.max(1f, roadBottom)));
+        float bottomLeft = getWidth() == 0 ? roadLeft : getWidth() * ROAD_BOTTOM_LEFT_RATIO;
+        float bottomRight = getWidth() == 0 ? roadRight : getWidth() * ROAD_BOTTOM_RIGHT_RATIO;
+        float left = lerp(roadLeft, bottomLeft, roadAmount);
+        float right = lerp(roadRight, bottomRight, roadAmount);
+        return left + (right - left) * (lane + 0.5f) / 3f;
+    }
+
+    private int laneAtX(float x) {
+        int closestLane = 0;
+        float closestDistance = Math.abs(x - laneCenter(0));
+        for (int lane = 1; lane < 3; lane++) {
+            float distance = Math.abs(x - laneCenter(lane));
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestLane = lane;
+            }
+        }
+        return closestLane;
     }
 
     private float playerY(long now) {
@@ -1341,7 +1447,7 @@ public class NightTraceView extends View {
     private class Obstacle {
         final int type;
         final int lane;
-        final float x;
+        float x;
         float y;
         float drift;
         float driftDirection = 1f;
@@ -1372,6 +1478,11 @@ public class NightTraceView extends View {
         }
 
         RectF hitBox(RectF out) {
+            if (type == TYPE_BARRIER) {
+                out.set(x - 28f * density, y - 28f * density,
+                        x + 28f * density, y + 30f * density);
+                return out;
+            }
             drawBox(out);
             out.inset(10f * density, 10f * density);
             return out;
@@ -1380,13 +1491,15 @@ public class NightTraceView extends View {
 
     private class Collectible {
         final int type;
+        final int lane;
         float x;
         float y;
         float spin;
         boolean collected;
 
-        Collectible(int type, float x, float y) {
+        Collectible(int type, int lane, float x, float y) {
             this.type = type;
+            this.lane = lane;
             this.x = x;
             this.y = y;
         }
