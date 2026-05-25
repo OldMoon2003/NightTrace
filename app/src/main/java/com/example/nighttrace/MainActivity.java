@@ -1,13 +1,22 @@
 package com.example.nighttrace;
 
+import android.animation.Animator;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements NightTraceView.OnGameStateChangeListener {
 
@@ -19,8 +28,15 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
     private TextView startBestView;
     private TextView countdownView;
     private View startScreen;
+    private View startCoverImage;
+    private View startHorizonGlow;
+    private View startNeonSweep;
+    private View startRailCyan;
+    private View startRailGold;
     private View startTitleGroup;
+    private View startTitleArt;
     private View startControls;
+    private View startRoadPulse;
     private View startTransition;
     private View transitionSweep;
     private View transitionLabel;
@@ -28,6 +44,7 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
     private Button heroStartButton;
     private Button pauseIconButton;
     private SharedPreferences preferences;
+    private final List<Animator> startIdleAnimators = new ArrayList<>();
     private int bestScore;
     private boolean startingGame;
 
@@ -43,8 +60,15 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
         startBestView = findViewById(R.id.tv_start_best);
         countdownView = findViewById(R.id.tv_countdown);
         startScreen = findViewById(R.id.start_screen);
+        startCoverImage = findViewById(R.id.start_cover_image);
+        startHorizonGlow = findViewById(R.id.start_horizon_glow);
+        startNeonSweep = findViewById(R.id.start_neon_sweep);
+        startRailCyan = findViewById(R.id.start_rail_cyan);
+        startRailGold = findViewById(R.id.start_rail_gold);
         startTitleGroup = findViewById(R.id.start_title_group);
+        startTitleArt = findViewById(R.id.start_title_art);
         startControls = findViewById(R.id.start_controls);
+        startRoadPulse = findViewById(R.id.start_road_pulse);
         startTransition = findViewById(R.id.start_transition);
         transitionSweep = findViewById(R.id.transition_sweep);
         transitionLabel = findViewById(R.id.transition_label);
@@ -76,6 +100,7 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
             return;
         }
         startingGame = true;
+        stopStartIdleAnimations();
         pauseMenu.setVisibility(View.GONE);
         heroStartButton.setEnabled(false);
 
@@ -201,6 +226,70 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
                 .setStartDelay(120L)
                 .setDuration(520L)
                 .start();
+        startScreen.post(this::startStartIdleAnimations);
+    }
+
+    private void startStartIdleAnimations() {
+        if (startScreen.getVisibility() != View.VISIBLE || startingGame) {
+            return;
+        }
+        stopStartIdleAnimations();
+
+        float density = getResources().getDisplayMetrics().density;
+        AnimatorSet coverDrift = new AnimatorSet();
+        coverDrift.playTogether(
+                repeatingFloat(startCoverImage, View.SCALE_X, 1.01f, 1.08f, 9200L),
+                repeatingFloat(startCoverImage, View.SCALE_Y, 1.01f, 1.08f, 9200L),
+                repeatingFloat(startCoverImage, View.TRANSLATION_X, -5f * density, 7f * density, 9200L));
+
+        ObjectAnimator horizonPulse = repeatingFloat(startHorizonGlow, View.ALPHA, 0.22f, 0.62f, 2700L);
+        ObjectAnimator titleFloat = repeatingFloat(startTitleArt, View.TRANSLATION_Y, -4f * density, 7f * density, 2400L);
+        ObjectAnimator titleGlow = repeatingFloat(startTitleArt, View.ALPHA, 0.86f, 1f, 1800L);
+        ObjectAnimator buttonScaleX = repeatingFloat(heroStartButton, View.SCALE_X, 0.985f, 1.025f, 1500L);
+        ObjectAnimator buttonScaleY = repeatingFloat(heroStartButton, View.SCALE_Y, 0.985f, 1.025f, 1500L);
+        ObjectAnimator roadPulse = repeatingFloat(startRoadPulse, View.ALPHA, 0.46f, 1f, 960L);
+        ObjectAnimator cyanRailPulse = repeatingFloat(startRailCyan, View.ALPHA, 0.34f, 0.96f, 1240L);
+        ObjectAnimator goldRailPulse = repeatingFloat(startRailGold, View.ALPHA, 0.28f, 0.84f, 1640L);
+        ObjectAnimator neonSweep = ObjectAnimator.ofFloat(
+                startNeonSweep,
+                View.TRANSLATION_X,
+                -startScreen.getWidth() * 0.7f,
+                startScreen.getWidth() * 1.25f);
+        neonSweep.setDuration(3600L);
+        neonSweep.setInterpolator(new LinearInterpolator());
+        neonSweep.setRepeatCount(ValueAnimator.INFINITE);
+        neonSweep.setRepeatMode(ValueAnimator.RESTART);
+
+        startIdleAnimators.add(coverDrift);
+        startIdleAnimators.add(horizonPulse);
+        startIdleAnimators.add(titleFloat);
+        startIdleAnimators.add(titleGlow);
+        startIdleAnimators.add(buttonScaleX);
+        startIdleAnimators.add(buttonScaleY);
+        startIdleAnimators.add(roadPulse);
+        startIdleAnimators.add(cyanRailPulse);
+        startIdleAnimators.add(goldRailPulse);
+        startIdleAnimators.add(neonSweep);
+        for (Animator animator : startIdleAnimators) {
+            animator.start();
+        }
+    }
+
+    private ObjectAnimator repeatingFloat(View view, android.util.Property<View, Float> property,
+                                          float from, float to, long duration) {
+        ObjectAnimator animator = ObjectAnimator.ofFloat(view, property, from, to);
+        animator.setDuration(duration);
+        animator.setInterpolator(new AccelerateDecelerateInterpolator());
+        animator.setRepeatCount(ValueAnimator.INFINITE);
+        animator.setRepeatMode(ValueAnimator.REVERSE);
+        return animator;
+    }
+
+    private void stopStartIdleAnimations() {
+        for (Animator animator : startIdleAnimators) {
+            animator.cancel();
+        }
+        startIdleAnimators.clear();
     }
 
     private void updateStartBestScore() {
@@ -218,7 +307,16 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
     @Override
     protected void onPause() {
         super.onPause();
+        stopStartIdleAnimations();
         nightTraceView.pauseIfRunning();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (startScreen.getVisibility() == View.VISIBLE) {
+            startScreen.post(this::startStartIdleAnimations);
+        }
     }
 
     @Override
@@ -235,5 +333,8 @@ public class MainActivity extends AppCompatActivity implements NightTraceView.On
         startScreen.setVisibility(state == NightTraceView.GameState.READY ? View.VISIBLE : View.GONE);
         pauseIconButton.setVisibility(state == NightTraceView.GameState.RUNNING ? View.VISIBLE : View.GONE);
         pauseMenu.setVisibility(state == NightTraceView.GameState.PAUSED ? View.VISIBLE : View.GONE);
+        if (state != NightTraceView.GameState.READY) {
+            stopStartIdleAnimations();
+        }
     }
 }

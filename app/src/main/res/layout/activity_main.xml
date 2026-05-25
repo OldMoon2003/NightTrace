@@ -105,11 +105,20 @@
         android:focusable="true">
 
         <ImageView
+            android:id="@+id/start_cover_image"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:contentDescription="@string/app_name"
             android:scaleType="centerCrop"
             android:src="@drawable/start_cover" />
+
+        <View
+            android:id="@+id/start_horizon_glow"
+            android:layout_width="match_parent"
+            android:layout_height="410dp"
+            android:layout_gravity="center_vertical"
+            android:alpha="0.34"
+            android:background="@drawable/start_horizon_glow" />
 
         <View
             android:layout_width="match_parent"
@@ -129,6 +138,7 @@
             android:background="#B3050816" />
 
         <View
+            android:id="@+id/start_rail_cyan"
             android:layout_width="3dp"
             android:layout_height="match_parent"
             android:layout_gravity="left"
@@ -139,6 +149,7 @@
             android:background="#22D3EE" />
 
         <View
+            android:id="@+id/start_rail_gold"
             android:layout_width="3dp"
             android:layout_height="match_parent"
             android:layout_gravity="right"
@@ -147,6 +158,13 @@
             android:layout_marginBottom="72dp"
             android:alpha="0.72"
             android:background="#FACC15" />
+
+        <View
+            android:id="@+id/start_neon_sweep"
+            android:layout_width="148dp"
+            android:layout_height="match_parent"
+            android:alpha="0.24"
+            android:background="@drawable/start_neon_sweep" />
 
         <LinearLayout
             android:id="@+id/start_title_group"
@@ -159,6 +177,7 @@
             android:paddingEnd="28dp">
 
             <ImageView
+                android:id="@+id/start_title_art"
                 android:layout_width="match_parent"
                 android:layout_height="142dp"
                 android:contentDescription="@string/app_name"
@@ -203,6 +222,7 @@
                 android:textStyle="bold" />
 
             <LinearLayout
+                android:id="@+id/start_road_pulse"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
